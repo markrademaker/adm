@@ -16,14 +16,16 @@ class recommenderSystem():
         # Naive Approach
         r_global = df_ratings['Rating'].mean()
         r_item = df_ratings.groupby('MovieID')['Rating'].mean().reset_index().rename({'Rating':
-                                                                                      'R_item'},axis='columns')
+                                                                        'R_item'},axis='columns')
+        avg_item = r_item.dropna().mean()
+        r_item_filled = r_item.fillna(avg_item, inplace=True)
         
-        r_user = df_ratings.groupby('UserID')['Rating'].mean().reset_index().rename({'Rating': 'R_user'},axis='columns')
-        df_ratings=df_ratings.merge(r_item, on=['MovieID']).merge(r_user, on=['UserID'])
-        print(r_global)
-        print(r_item.head())
-        print(r_user.head())
-        print(df_ratings.head())
+        r_user = df_ratings.groupby('UserID')['Rating'].mean().reset_index().rename({'Rating':
+                                                                        'R_user'},axis='columns')
+        avg_user = r_user.dropna().mean()                                                    
+        r_user_filled = r_user.fillna(avg_user, inplace=True)
+        
+        df_ratings=df_ratings.merge(r_item_filled, on=['MovieID']).merge(r_user_filled, on=['UserID'])
 
         X = df_ratings[['R_item','R_user']]
         y = df_ratings['Rating']
@@ -33,29 +35,26 @@ class recommenderSystem():
         gamma = model.intercept_
 
         print(f'alpha: {alpha}, beta: {beta}, gamma: {gamma}')
-        
-    def UV_decomposition(self, df_ratings, nr_features):
-        # Provide U matrix for users
-        # Provide V matrix for movies
-        num_users = df_ratings['UserID'].nunique()
-        num_movies = df_ratings['MovieID'].nunique()
+        return df_ratings
 
-        # Get user-movie interaction
-        R = pd.pivot_table(df_ratings, index='UserID', columns='MovieID', values='Rating').values
-        epochs=100
-        lr= 0.001
+    def matrix_factorization(self, df):
+        # The Matrix Factorization
         U = np.random.rand(num_users, nr_features)
         V = np.random.rand(num_movies, nr_features).T
-        for e in range(epochs):
+        num_factors=10
+        num_iter=75
+        reg=0.05
+        lr=0.005
+        num_users = df_ratings['UserID'].nunique()
+        num_movies = df_ratings['MovieID'].nunique()
+        R = pd.pivot_table(df_ratings, index='UserID', columns='MovieID', values='Rating').values
+        for i in range(num_iter):
             for i in range(num_users):
                 for j in range(num_movies):
-                    if(np.isnan(R[i][j])):
-                        continue
-                    else:
-                        error = R[i][j] - np.dot(U[i, :], V[:, j])
-                        for k in range(nr_features):
-                            U[i][k] += lr * (2 * error * V[k][j] -   U[i][k])
-                            V[k][j] += lr * (2 * error * U[i][k] -   V[k][j])
+                    error = R[i][j]–  np.dot(U[i, :], V[:, j])
+                    for k in range(num_factors):
+                        U[i][k] += lr * (error * V[k][j] - reg*  U[i][k])
+                        V[k][j] += lr * (error * U[i][k] - reg*  V[k][j])
             # Compute loss
             total_error = 0
             for i in range(num_users):
@@ -63,11 +62,6 @@ class recommenderSystem():
                     if R[i][j] > 0:
                         total_error += (R[i][j] - np.dot(U[i, :], V[:, j]))**2
             print(f"Total Error epoch {e}: {total_error}")
-
-    def function_4(self, train):
-        # The Matrix Factorization
-        print("yo")
-        
     def function_5(self, train):
         print("world")
         
@@ -142,5 +136,5 @@ if __name__ == '__main__':
         print(df_movies.head())
 
         rec= recommenderSystem();
-        rec.Naive_1(df_ratings);
-        rec.UV_decomposition(df_ratings, nr_features=2);
+        df_filled=rec.Naive_1(df_ratings);
+        rec.matrix_factorization(df_filled);
